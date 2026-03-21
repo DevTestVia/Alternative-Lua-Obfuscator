@@ -12,7 +12,6 @@ font-family:monospace;
 text-align:center;
 padding:40px
 }
-
 textarea{
 width:90%;
 height:220px;
@@ -22,7 +21,6 @@ border:none;
 padding:10px;
 margin:10px
 }
-
 button{
 padding:10px 20px;
 background:#00ffa6;
@@ -48,77 +46,39 @@ cursor:pointer
 <script>
 
 function lzwCompress(s){
-
-let dict={}
-let data=s.split("")
-let phrase=data[0]
-let code=256
-let out=[]
-
+let dict={},data=s.split(""),p=data[0],code=256,out=[]
 for(let i=1;i<data.length;i++){
-
-let cur=data[i]
-
-if(dict[phrase+cur]!=null){
-phrase+=cur
-}else{
-out.push(phrase.length>1?dict[phrase]:phrase.charCodeAt(0))
-dict[phrase+cur]=code++
-phrase=cur
-}
-
-}
-
-out.push(phrase.length>1?dict[phrase]:phrase.charCodeAt(0))
+let c=data[i]
+if(dict[p+c]!=null){p+=c}
+else{
+out.push(p.length>1?dict[p]:p.charCodeAt(0))
+dict[p+c]=code++
+p=c
+}}
+out.push(p.length>1?dict[p]:p.charCodeAt(0))
 return out
-
 }
 
 function randWord(){
-
-let chars="abcdefghijklmnopqrstuvwxyz"
-let s=""
-let len=2+Math.floor(Math.random()*2)
-
-for(let i=0;i<len;i++)
-s+=chars[Math.floor(Math.random()*chars.length)]
-
+let c="abcdefghijklmnopqrstuvwxyz",s=""
+for(let i=0;i<2+Math.floor(Math.random()*2);i++)
+s+=c[Math.floor(Math.random()*c.length)]
 return s
-
 }
 
 function mathExpr(n){
-
 let t=Math.floor(Math.random()*4)
-
-if(t==0){
-let a=Math.floor(Math.random()*n)+1
-let b=n-a
-return "("+a+"+"+b+")"
-}
-
-if(t==1){
-return "("+(n*2)+"/2)"
-}
-
-if(t==2){
-let a=n+Math.floor(Math.random()*5)
-let b=a-n
-return "("+a+"-"+b+")"
-}
-
+if(t==0){let a=Math.floor(Math.random()*n)+1;return "("+a+"+"+(n-a)+")"}
+if(t==1)return "("+(n*2)+"/2)"
+if(t==2){let a=n+Math.floor(Math.random()*5);return "("+a+"-"+(a-n)+")"}
 return "(1*"+n+")"
-
 }
 
 function stateExpr(n){
-
 let t=Math.floor(Math.random()*3)
-
-if(t==0) return "("+(n*2)+"/2)"
-if(t==1) return "("+(n+10)+"-10)"
+if(t==0)return "("+(n*2)+"/2)"
+if(t==1)return "("+(n+10)+"-10)"
 return "(1*"+n+")"
-
 }
 
 function randState(){
@@ -131,109 +91,89 @@ let src=document.getElementById("input").value
 if(!src.trim()) return
 
 let compressed=lzwCompress(src)
-
 let key=87
-let encrypted=compressed.map(v=>v^key)
-let base36=encrypted.map(v=>v.toString(36))
 
-let data=[]
-let idx=[]
+let base36=compressed.map(v=>(v^key).toString(36))
+
+let data=[],idx=[]
 
 for(let i=0;i<base36.length;i++){
 
-if(Math.random()>0.5)
-data.push(randWord())
+if(Math.random()>0.5)data.push(randWord())
 
 let pos=data.length+1
 idx.push(mathExpr(pos))
 
 data.push(base36[i])
 
-if(Math.random()>0.5)
-data.push(randWord())
-
+if(Math.random()>0.5)data.push(randWord())
 }
 
-let s1=randState()
-let s2=randState()
-let s3=randState()
-let s4=randState()
-let s5=randState()
+let s1=randState(),s2=randState(),s3=randState(),s4=randState(),s5=randState()
 
-let lua="--// Protected By Viterveral\n\n\n"
+let core=""
 
-lua+="local _s=string local _b=_s.byte local _c=_s.char local _n=tonumber "
-lua+="local base=36 local k=_b('X')-1 "
-lua+="local d={\""+data.join("\",\"")+"\"} "
-lua+="local idx={"+idx.join(",")+"} "
+core+="local _s=string local _b=_s.byte local _c=_s.char local _n=tonumber "
+core+="local base=36 local k=_b('X')-1 "
+core+="local d={\""+data.join("\",\"")+"\"} "
+core+="local idx={"+idx.join(",")+"} "
 
-lua+="local t={} local dict={} local r={} local vm={} "
+core+="local t={} local dict={} local r={} local vm={} "
 
-lua+="vm["+stateExpr(s1)+"]=function() "
-lua+="for i=1,#idx do "
-lua+="local v=d[idx[i]] "
-lua+="local n=_n(v,base) "
-lua+="if n then t[#t+1]=n~k end "
-lua+="end "
-lua+="return "+stateExpr(s2)+" end "
+core+="vm["+stateExpr(s1)+"]=function() "
+core+="for i=1,#idx do local v=d[idx[i]] local n=_n(v,base) if n then t[#t+1]=n~k end end "
+core+="return "+stateExpr(s2)+" end "
 
-lua+="vm["+stateExpr(s2)+"]=function() "
-lua+="for i=0,255 do dict[i]=_c(i) end "
-lua+="local p=_c(t[1]) r[1]=p local c=256 "
-lua+="for i=2,#t do "
-lua+="local n=t[i] local e "
-lua+="if dict[n] then e=dict[n] elseif n==c then e=p..p:sub(1,1) end "
-lua+="r[#r+1]=e "
-lua+="dict[c]=p..e:sub(1,1) "
-lua+="c=c+1 "
-lua+="p=e "
-lua+="end "
-lua+="return "+stateExpr(s3)+" end "
+core+="vm["+stateExpr(s2)+"]=function() "
+core+="for i=0,255 do dict[i]=_c(i) end "
+core+="local p=_c(t[1]) r[1]=p local c=256 "
+core+="for i=2,#t do "
+core+="local n=t[i] local e "
+core+="if dict[n] then e=dict[n] elseif n==c then e=p..p:sub(1,1) end "
+core+="r[#r+1]=e "
+core+="dict[c]=p..e:sub(1,1) "
+core+="c=c+1 p=e end "
+core+="return "+stateExpr(s3)+" end "
 
-lua+="vm["+stateExpr(s3)+"]=function() "
-lua+="local a={} "
-lua+="for i=1,#r do a[i]=r[i] end "
-lua+="local s=table.concat(a) "
-lua+="local f=(loadstring or load) "
-lua+="if f then local g=f(s) if g then g() end end "
-lua+="return "+stateExpr(s4)+" end "
+core+="vm["+stateExpr(s3)+"]=function() "
+core+="local a={} for i=1,#r do a[i]=r[i] end "
+core+="return table.concat(a) "
+core+="end "
 
-lua+="vm["+stateExpr(s4)+"]=function() return nil end "
+core+="vm["+stateExpr(s4)+"]=function() return nil end "
 
-lua+="vm["+stateExpr(s5)+"]=function() "
-lua+="local v=0 "
-lua+="for i=1,5 do v=v+i end "
-lua+="return "+stateExpr(s3)+" end "
+core+="vm["+stateExpr(s5)+"]=function() "
+core+="local v=0 for i=1,5 do v=v+i end "
+core+="return "+stateExpr(s3)+" end "
 
-lua+="local state="+stateExpr(s1)+" "
+core+="local state="+stateExpr(s1)+" local out "
 
-lua+="while state do "
-lua+="state=vm[state]() "
-lua+="end "
+core+="while state do "
+core+="local res=vm[state]() "
+core+="if type(res)=='string' then out=res break end "
+core+="state=res end "
+
+let lua="--// Protected\n\n\n"
+lua+="local L=loadstring "
+lua+="local R=(function() "+core+" return out end)() "
+lua+="if L then L(R)() end"
 
 document.getElementById("output").value=lua
-
 }
 
 function copyOut(){
-
 let o=document.getElementById("output")
 o.select()
 document.execCommand("copy")
-
 }
 
 function downloadLua(){
-
 let code=document.getElementById("output").value
-
 let blob=new Blob([code],{type:"text/plain"})
 let a=document.createElement("a")
-
 a.href=URL.createObjectURL(blob)
-a.download="obfuscated.lua"
+a.download="protected.lua"
 a.click()
-
 }
 
 </script>
